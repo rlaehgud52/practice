@@ -16,3 +16,7 @@ node server.js
 - 풀이 응답과 다시 보기 표시는 해당 브라우저의 로컬 저장소에 저장됩니다. 브라우저 데이터를 지우면 초기화됩니다.
 - Vercel 배포 절차와 편집 저장 방식은 `VERCEL.md`를 참고하세요.
 - 사용한 문항과 이미지의 저작권은 KAMC에 있습니다. 개인 학습용으로만 사용하세요.
+
+## MEDI-OS foundation
+
+The first foundation adds a reviewed Supabase schema proposal and project setup notes while preserving the current local CBT behavior. The app does not connect to Supabase yet; `.env.example` is documentation only. See `docs/PHASE1.md` and `supabase/migrations/` before any future database integration.
