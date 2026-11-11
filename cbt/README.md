@@ -19,4 +19,20 @@ node server.js
 
 ## MEDI-OS foundation
 
-The first foundation adds a reviewed Supabase schema proposal and project setup notes while preserving the current local CBT behavior. The app does not connect to Supabase yet; `.env.example` is documentation only. See `docs/PHASE1.md` and `supabase/migrations/` before any future database integration.
+The first foundation adds a Supabase schema and a separate, opt-in importer while preserving the current local CBT behavior. The app itself does not connect to Supabase; `.env.example` is documentation for the importer and future setup. See `docs/PHASE1.md` before any database migration or import.
+
+### Legacy question import
+
+The importer defaults to a read-only dry run:
+
+```bash
+node scripts/migrate-legacy-questions.js
+```
+
+To import into an already configured Supabase project, apply the migration first, then set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and a valid `SUPABASE_USER_ACCESS_TOKEN` in the local environment and run:
+
+```bash
+node scripts/migrate-legacy-questions.js --apply
+```
+
+The importer creates a private subject and private questions owned by the authenticated user. It preserves legacy IDs, order, choices, one-based answers (including `null`), explanations, and image paths as metadata. It is idempotent for the same user and legacy IDs. It does not upload question images or PDF files, alter either source JSON, or modify the CBT's `localStorage` data. The KAMC source material remains subject to the personal-study-only notice above; do not share or publish it without rights approval.
