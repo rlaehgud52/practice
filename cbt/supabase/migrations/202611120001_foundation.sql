@@ -126,7 +126,21 @@ create policy "owners manage answer keys for own banks"
     where i.id = question_id and b.owner_id = (select auth.uid())
   ));
 
-create policy "users manage only own attempts"
+create policy "users manage attempts for readable banks"
   on public.attempts for all to authenticated
-  using (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()));
+  using (
+    user_id = (select auth.uid())
+    and exists (
+      select 1 from public.question_banks b
+      where b.id = bank_id
+        and (b.owner_id = (select auth.uid()) or b.visibility = 'shared')
+    )
+  )
+  with check (
+    user_id = (select auth.uid())
+    and exists (
+      select 1 from public.question_banks b
+      where b.id = bank_id
+        and (b.owner_id = (select auth.uid()) or b.visibility = 'shared')
+    )
+  );
