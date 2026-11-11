@@ -61,6 +61,16 @@ The importer dry run needs no credentials. `--apply` requires a migrated Supabas
 
 Before applying to any hosted database, review and test the SQL against a disposable local Supabase instance. No hosted project or database has been created or modified as part of this work.
 
+When the Supabase CLI and Docker are available, run the database suite from `cbt/`:
+
+```powershell
+supabase start
+supabase test db
+supabase stop
+```
+
+`supabase/tests/database/schema_rls_test.sql` checks that the requested tables exist, RLS is enabled on every application table, and the PDF bucket is private. These tests still need execution against a disposable local Supabase instance before considering the migration validated.
+
 ## Rollback and backups
 
 - Before migration, back up the Supabase database and the complete `cbt/` folder, especially both question JSON files, `public/images/`, and the browser's existing localStorage profile.
