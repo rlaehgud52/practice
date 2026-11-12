@@ -1,9 +1,10 @@
 begin;
 
-select plan(31);
+select plan(33);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'subjects', 'subjects table exists');
+select has_table('public', 'exam_banks', 'exam_banks table exists');
 select has_table('public', 'lectures', 'lectures table exists');
 select has_table('public', 'lecture_files', 'lecture_files table exists');
 select has_table('public', 'pdf_pages', 'pdf_pages table exists');
@@ -24,6 +25,9 @@ select ok((select relrowsecurity from pg_class c
 select ok((select relrowsecurity from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relname = 'subjects'), 'subjects has RLS enabled');
+select ok((select relrowsecurity from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relname = 'exam_banks'), 'exam_banks has RLS enabled');
 select ok((select relrowsecurity from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relname = 'lectures'), 'lectures has RLS enabled');

@@ -7,10 +7,10 @@ The current CBT remains a Node.js 18+, vanilla JavaScript application. Its HTML/
 Migration `supabase/migrations/202611120001_foundation.sql` creates:
 
 - `profiles`: one profile per Supabase Auth user.
-- `subjects` and `lectures`: user-owned catalogs with private/shared/public visibility metadata.
+- `subjects`, `exam_banks`, and `lectures`: user-owned catalogs; exam banks preserve each uploaded test as a distinct unit, with private/shared/public visibility metadata.
 - `lecture_files`: metadata and a Storage object path only; PDF bytes are stored in the private `lecture-files` bucket.
 - `pdf_pages` and `extracted_blocks`: page text and extracted content, owned by the file owner.
-- `questions` and `question_choices`: question text and ordered choices, with legacy identifiers and metadata.
+- `questions` and `question_choices`: question text and ordered choices, with legacy identifiers and metadata. Questions support single-choice and short-answer formats.
 - `question_keys`: separate answer and explanation storage so shared question reads do not reveal answers.
 - `question_sources`: links from questions to extracted PDF blocks/pages.
 - `attempts` and `attempt_answers`: user-owned practice sessions and responses.
@@ -33,16 +33,18 @@ All tables have primary keys. Foreign keys enforce ownership links and cascade/r
 
 | Legacy JSON | Destination |
 | --- | --- |
-| `title` | Private `subjects.title` |
+| `title` | Private `subjects.title` and `exam_banks.title` |
+| bank id / slug / title | Stable `exam_banks.source_key` for repeatable imports |
 | `questions[].id` | `questions.legacy_id` |
 | array order / `number` | `questions.legacy_number` |
 | `stem` | `questions.stem` |
 | `choices[]` | ordered `question_choices` rows; position remains 1-based |
-| `answer` | private `question_keys.answer`; `null` remains `null` |
+| `answer` | private `question_keys.answer`; missing/`null` remains `null` |
+| `type: subjective`, `expected_answer`, `accepted_answers` | `questions.question_type='short_answer'` and private `question_keys` text fields |
 | `explanation` | private `question_keys.explanation` |
 | `images[]` | `questions.legacy_metadata.images` (original `/images/...` paths retained) |
 
-The importer authenticates using a user access token and writes content owned by that user with `visibility='private'`. It is safe to re-run for the same owner and legacy IDs. A failed import may have completed some upserts; re-running completes the remaining rows. It does not upload image files or any PDFs.
+The importer accepts the original `{title, questions:[...]}` CBT JSON and mixed exported banks with `id`/`source_key`, `type`, `prompt`/`question`, `options`, and subjective answer fields. It authenticates using a user access token and writes content owned by that user with `visibility='private'`. It is safe to re-run for the same owner and IDs. A failed import may have completed some upserts; re-running completes them. It does not upload image files or PDFs. Only records present in an authorized export are imported; it does not read another hosted app, bypass hidden items, or provide live synchronization. Do not export or import items you are not allowed to use or share.
 
 ## Run and verify
 

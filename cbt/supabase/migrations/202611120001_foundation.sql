@@ -18,6 +18,21 @@ create table public.subjects (
   unique (owner_id, title)
 );
 
+create table public.exam_banks (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  subject_id uuid references public.subjects(id) on delete set null,
+  source_key text not null,
+  title text not null check (length(trim(title)) > 0),
+  description text not null default '',
+  visibility public.content_visibility not null default 'private',
+  source_metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, source_key),
+  check (jsonb_typeof(source_metadata) = 'object')
+);
+
 create table public.lectures (
   id uuid primary key default gen_random_uuid(),
   subject_id uuid not null references public.subjects(id) on delete cascade,
@@ -72,16 +87,19 @@ create table public.extracted_blocks (
 create table public.questions (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
+  exam_bank_id uuid not null references public.exam_banks(id) on delete cascade,
   subject_id uuid references public.subjects(id) on delete set null,
   lecture_id uuid references public.lectures(id) on delete set null,
   legacy_id text,
   legacy_number integer,
+  question_type text not null default 'single_choice'
+    check (question_type in ('single_choice', 'short_answer')),
   stem text not null,
   visibility public.content_visibility not null default 'private',
   legacy_metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (owner_id, legacy_id),
+  unique (exam_bank_id, legacy_id),
   check (legacy_number is null or legacy_number > 0),
   check (jsonb_typeof(legacy_metadata) = 'object')
 );
@@ -99,9 +117,12 @@ create table public.question_choices (
 create table public.question_keys (
   question_id uuid primary key references public.questions(id) on delete cascade,
   answer smallint,
+  expected_answer text,
+  accepted_answers jsonb not null default '[]'::jsonb,
   explanation text not null default '',
   updated_at timestamptz not null default now(),
-  check (answer is null or answer > 0)
+  check (answer is null or answer > 0),
+  check (jsonb_typeof(accepted_answers) = 'array')
 );
 
 create table public.question_sources (
@@ -129,12 +150,13 @@ create table public.attempt_answers (
   question_id uuid not null references public.questions(id) on delete restrict,
   selected_choice_id uuid,
   answer_value smallint,
+  answer_text text,
   is_correct boolean,
   answered_at timestamptz not null default now(),
   unique (attempt_id, question_id),
   foreign key (selected_choice_id, question_id)
     references public.question_choices(id, question_id) on delete restrict,
-  check (selected_choice_id is not null or answer_value is null)
+  check (answer_text is null or (selected_choice_id is null and answer_value is null))
 );
 
 create table public.question_memos (
@@ -167,6 +189,8 @@ create table public.review_logs (
 );
 
 create index lectures_subject_idx on public.lectures(subject_id);
+create index exam_banks_owner_idx on public.exam_banks(owner_id, created_at desc);
+create index exam_banks_subject_idx on public.exam_banks(subject_id);
 create index lecture_files_lecture_idx on public.lecture_files(lecture_id);
 create index pdf_pages_file_page_idx on public.pdf_pages(lecture_file_id, page_number);
 create index extracted_blocks_page_idx on public.extracted_blocks(pdf_page_id, block_order);
@@ -182,6 +206,7 @@ create index review_logs_user_reviewed_idx on public.review_logs(user_id, review
 
 alter table public.profiles enable row level security;
 alter table public.subjects enable row level security;
+alter table public.exam_banks enable row level security;
 alter table public.lectures enable row level security;
 alter table public.lecture_files enable row level security;
 alter table public.pdf_pages enable row level security;
@@ -197,6 +222,7 @@ alter table public.flashcards enable row level security;
 alter table public.review_logs enable row level security;
 
 grant select, insert, update, delete on public.profiles, public.subjects, public.lectures,
+  public.exam_banks,
   public.lecture_files, public.pdf_pages, public.extracted_blocks, public.questions,
   public.question_choices, public.question_keys, public.question_sources, public.attempts,
   public.attempt_answers, public.question_memos, public.flashcards, public.review_logs
@@ -218,6 +244,23 @@ create policy "owners update private subjects" on public.subjects
   using (owner_id = (select auth.uid()) and visibility = 'private')
   with check (owner_id = (select auth.uid()) and visibility = 'private');
 create policy "owners delete subjects" on public.subjects
+  for delete to authenticated using (owner_id = (select auth.uid()));
+
+create policy "exam banks readable by owner or visibility" on public.exam_banks
+  for select to authenticated
+  using (owner_id = (select auth.uid()) or visibility in ('shared', 'public'));
+create policy "owners create private exam banks" on public.exam_banks
+  for insert to authenticated
+  with check (owner_id = (select auth.uid()) and visibility = 'private'
+    and (subject_id is null or exists (select 1 from public.subjects s
+      where s.id = subject_id and s.owner_id = (select auth.uid()))));
+create policy "owners update private exam banks" on public.exam_banks
+  for update to authenticated
+  using (owner_id = (select auth.uid()) and visibility = 'private')
+  with check (owner_id = (select auth.uid()) and visibility = 'private'
+    and (subject_id is null or exists (select 1 from public.subjects s
+      where s.id = subject_id and s.owner_id = (select auth.uid()))));
+create policy "owners delete exam banks" on public.exam_banks
   for delete to authenticated using (owner_id = (select auth.uid()));
 
 create policy "lectures readable by owner or visibility" on public.lectures
@@ -277,21 +320,33 @@ create policy "owners manage extracted blocks" on public.extracted_blocks
 
 create policy "questions readable by owner or visibility" on public.questions
   for select to authenticated
-  using (owner_id = (select auth.uid()) or visibility in ('shared', 'public'));
+  using (owner_id = (select auth.uid()) or (visibility in ('shared', 'public') and exists (
+    select 1 from public.exam_banks b where b.id = exam_bank_id
+      and b.visibility in ('shared', 'public'))));
 create policy "owners create private questions" on public.questions
   for insert to authenticated
-  with check (owner_id = (select auth.uid()) and visibility = 'private');
+  with check (owner_id = (select auth.uid()) and visibility = 'private'
+    and exists (select 1 from public.exam_banks b where b.id = exam_bank_id
+      and b.owner_id = (select auth.uid()))
+    and (subject_id is null or exists (select 1 from public.subjects s
+      where s.id = subject_id and s.owner_id = (select auth.uid()))));
 create policy "owners update private questions" on public.questions
   for update to authenticated
   using (owner_id = (select auth.uid()) and visibility = 'private')
-  with check (owner_id = (select auth.uid()) and visibility = 'private');
+  with check (owner_id = (select auth.uid()) and visibility = 'private'
+    and exists (select 1 from public.exam_banks b where b.id = exam_bank_id
+      and b.owner_id = (select auth.uid()))
+    and (subject_id is null or exists (select 1 from public.subjects s
+      where s.id = subject_id and s.owner_id = (select auth.uid()))));
 create policy "owners delete questions" on public.questions
   for delete to authenticated using (owner_id = (select auth.uid()));
 
 create policy "choices readable with question" on public.question_choices
   for select to authenticated
   using (exists (select 1 from public.questions q where q.id = question_id
-    and (q.owner_id = (select auth.uid()) or q.visibility in ('shared', 'public'))));
+    and (q.owner_id = (select auth.uid()) or (q.visibility in ('shared', 'public') and exists (
+      select 1 from public.exam_banks b where b.id = q.exam_bank_id
+        and b.visibility in ('shared', 'public'))))));
 create policy "owners manage choices on private questions" on public.question_choices
   for all to authenticated
   using (exists (select 1 from public.questions q where q.id = question_id
@@ -309,7 +364,9 @@ create policy "owners manage answer keys" on public.question_keys
 create policy "sources readable with question" on public.question_sources
   for select to authenticated
   using (exists (select 1 from public.questions q where q.id = question_id
-    and (q.owner_id = (select auth.uid()) or q.visibility in ('shared', 'public'))));
+    and (q.owner_id = (select auth.uid()) or (q.visibility in ('shared', 'public') and exists (
+      select 1 from public.exam_banks b where b.id = q.exam_bank_id
+        and b.visibility in ('shared', 'public'))))));
 create policy "owners manage sources for own questions" on public.question_sources
   for all to authenticated
   using (exists (select 1 from public.questions q where q.id = question_id

@@ -29,6 +29,24 @@ test('keeps a known one-based answer and explanation', () => {
   assert.equal(mapped.key.explanation, 'Because');
 });
 
+test('maps mixed multiple-choice and short-answer exam items without changing unanswered values', () => {
+  const fixture = {
+    id: 'psychiatry-24', title: '정신의학 24 · 과정시험',
+    source_metadata: { source: 'user-export' },
+    questions: [
+      { id: 'mcq-1', type: 'objective', prompt: 'Question?', options: ['A', 'B'], answer: null },
+      { id: 'sa-1', type: 'subjective', question: 'Written answer?', expected_answer: '예시 답', accepted_answers: ['답 하나', '답 둘'] }
+    ]
+  };
+  const mapped = mapLegacyQuestionBank(fixture, 'user-1');
+  assert.deepEqual(mapped.map(item => item.question.question_type), ['single_choice', 'short_answer']);
+  assert.equal(mapped[0].key.answer, null);
+  assert.equal(mapped[1].key.answer, null);
+  assert.equal(mapped[1].key.expected_answer, '예시 답');
+  assert.deepEqual(mapped[1].key.accepted_answers, ['답 하나', '답 둘']);
+  assert.equal(mapped.every(item => item.question.visibility === 'private'), true);
+});
+
 test('rejects invalid one-based answers and duplicate legacy ids', () => {
   const invalidAnswer = { title: 'fixture', questions: [{
     id: 'q1', stem: 'Stem', choices: ['A', 'B'], answer: 0
@@ -43,7 +61,7 @@ test('rejects invalid one-based answers and duplicate legacy ids', () => {
 
 test('migration defines the requested tables with RLS enabled', () => {
   const tables = [
-    'profiles', 'subjects', 'lectures', 'lecture_files', 'pdf_pages', 'extracted_blocks',
+    'profiles', 'subjects', 'exam_banks', 'lectures', 'lecture_files', 'pdf_pages', 'extracted_blocks',
     'questions', 'question_choices', 'question_sources', 'attempts', 'attempt_answers',
     'question_memos', 'flashcards', 'review_logs'
   ];
@@ -52,6 +70,7 @@ test('migration defines the requested tables with RLS enabled', () => {
     assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`, 'i'), `${table} RLS missing`);
   }
   assert.match(migration, /create table public\.question_keys/i);
+  assert.match(migration, /create policy .* on public\.exam_banks/is);
   assert.match(migration, /create policy .* on storage\.objects/is);
   assert.match(migration, /values \('lecture-files', 'lecture-files', false\)/i);
 });
