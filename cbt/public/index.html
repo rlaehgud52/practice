@@ -1,7 +1,52 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>기종평 CBT</title><link rel="stylesheet" href="/style.css"></head><body>
-<header><div class="brand"><span class="mark">C</span><div><strong>기종평 CBT</strong><small>로컬 문제 풀이</small></div></div><div class="header-actions"><span id="saveStatus">응답은 이 브라우저에 자동 저장됩니다</span><button id="editButton" class="quiet">문항 관리</button></div></header>
-<main id="exam" class="layout"><aside class="rail"><div class="rail-head"><div class="eyebrow">QUESTION BANK</div><h1 id="examTitle">문제 불러오는 중</h1><div id="progressText" class="muted"></div><div class="progress"><div id="progressBar"></div></div></div><div class="rail-label">문항 이동 <span id="count"></span></div><div id="navigator" class="number-grid"></div><div class="legend"><span><i class="dot current"></i> 현재</span><span><i class="dot answered"></i> 응답</span><span><i class="dot flagged"></i> 표시</span></div><button id="submitButton" class="submit">제출하고 결과 보기</button><button id="resetButton" class="quiet full">응답 초기화</button></aside>
-<section class="workspace"><div class="topline"><div><span class="eyebrow">2025 · 3교시</span><div id="questionCounter" class="muted"></div></div><button id="flagButton" class="quiet">☆ 다시 보기</button></div><div id="question" class="question"></div><div class="footnav"><button id="prevButton" class="quiet">← 이전 문제</button><button id="nextButton" class="primary">다음 문제 →</button></div></section></main>
-<div id="result" class="overlay hidden"><div class="dialog result-dialog"><div class="dialog-top"><h2>풀이 결과</h2><button class="icon" data-close="result" aria-label="닫기">×</button></div><div id="resultBody"></div><button class="primary full" data-close="result">문제로 돌아가기</button></div></div>
-<div id="editor" class="overlay hidden"><div class="dialog editor-dialog"><div class="dialog-top"><div><div class="eyebrow">QUESTION BANK</div><h2>문항 관리</h2></div><button class="icon" data-close="editor" aria-label="닫기">×</button></div><div class="editor-grid"><div class="editor-list"><button id="newButton" class="primary full">+ 새 문항</button><div id="editorItems"></div></div><form id="editForm"><label>문항 ID<input name="id" required placeholder="예: 2025-3-36"></label><label>문제<textarea name="stem" required rows="5"></textarea></label><label>선택지 (한 줄에 하나)<textarea name="choices" required rows="6"></textarea></label><div class="form-row"><label>정답 번호 (없으면 비움)<input name="answer" type="number" min="1"></label><label>이미지 경로 (한 줄에 하나)<textarea name="images" rows="2" placeholder="/images/photo-1.png"></textarea></label></div><label>해설<textarea name="explanation" rows="2"></textarea></label><div class="form-actions"><button type="button" id="deleteButton" class="danger">문항 삭제</button><button class="primary" type="submit">문항 저장</button></div><p id="editorStatus" class="muted"></p></form></div><div class="import-row"><button id="exportButton" class="quiet">JSON 내보내기</button><label class="quiet file-button">JSON 가져오기<input id="importInput" type="file" accept=".json,application/json" hidden></label><span class="muted">변경 내용은 data/questions.json에 저장됩니다.</span></div></div></div>
-<script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102f49">
+  <title>내 CBT 보관함</title>
+  <link rel="stylesheet" href="/library.css">
+</head>
+<body class="library-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="내 CBT 홈">
+      <span class="brand-mark">C</span><span>내 CBT</span>
+    </a>
+    <nav class="main-nav" aria-label="주요 메뉴">
+      <a class="active" href="/">보관함</a>
+      <a class="coming-soon" href="#" aria-disabled="true">카드 복습 <small>준비 중</small></a>
+      <a class="coming-soon" href="#" aria-disabled="true">메모 모아보기 <small>준비 중</small></a>
+      <a class="coming-soon" href="#" aria-disabled="true">PDF 올리기 <small>준비 중</small></a>
+    </nav>
+  </header>
+
+  <main class="library-main">
+    <section class="welcome-row" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">MY STUDY SPACE</p>
+        <h1 id="page-title">내 CBT 보관함</h1>
+        <p class="welcome-copy">지금까지 만든 시험을 이어서 풀고, 다시 복습하세요.</p>
+      </div>
+      <a class="upload-button disabled-link" href="#" aria-disabled="true">＋ 새 PDF 올리기 <span>준비 중</span></a>
+    </section>
+
+    <section class="stats-panel" aria-label="학습 현황">
+      <div class="stat"><span>보관한 CBT</span><strong><b id="bankCount">—</b><small>개</small></strong></div>
+      <div class="stat"><span>전체 문항</span><strong><b id="questionCount">—</b><small>문항</small></strong></div>
+      <div class="stat"><span>응답한 문항</span><strong><b id="answeredCount">—</b><small>문항</small></strong></div>
+    </section>
+
+    <section class="library-section" aria-labelledby="library-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">LIBRARY</p><h2 id="library-title">시험 목록</h2></div>
+        <p class="save-note">풀이 기록은 이 브라우저에 저장됩니다</p>
+      </div>
+      <div id="examList" class="exam-grid" aria-live="polite">
+        <p class="loading-message">보관함을 불러오고 있습니다…</p>
+      </div>
+    </section>
+    <p id="loadError" class="load-error" role="status" hidden></p>
+  </main>
+  <script src="/library.js" defer></script>
+</body>
+</html>

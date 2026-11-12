@@ -16,3 +16,23 @@ node server.js
 - 풀이 응답과 다시 보기 표시는 해당 브라우저의 로컬 저장소에 저장됩니다. 브라우저 데이터를 지우면 초기화됩니다.
 - Vercel 배포 절차와 편집 저장 방식은 `VERCEL.md`를 참고하세요.
 - 사용한 문항과 이미지의 저작권은 KAMC에 있습니다. 개인 학습용으로만 사용하세요.
+
+## MEDI-OS foundation
+
+The first foundation adds a Supabase schema and a separate, opt-in importer while preserving the current local CBT behavior. The app itself does not connect to Supabase; `.env.example` is documentation for the importer and future setup. See `docs/PHASE1.md` before any database migration or import.
+
+### Legacy question import
+
+The importer defaults to a read-only dry run:
+
+```bash
+node scripts/migrate-legacy-questions.js
+```
+
+To import into an already configured Supabase project, apply the migration first, then set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and a valid `SUPABASE_USER_ACCESS_TOKEN` in the local environment and run:
+
+```bash
+node scripts/migrate-legacy-questions.js --apply
+```
+
+The importer creates a private subject and private questions owned by the authenticated user. It preserves legacy IDs, order, choices, one-based answers (including `null`), explanations, and image paths as metadata. It is idempotent for the same user and legacy IDs. It does not upload question images or PDF files, alter either source JSON, or modify the CBT's `localStorage` data. The KAMC source material remains subject to the personal-study-only notice above; do not share or publish it without rights approval.
